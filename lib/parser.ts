@@ -179,10 +179,12 @@ export function parsePortfolioData(
   const grossAssets = cashValue + equitiesValue + bondsValue + cryptoGoldValue;
 
   // --- Net Worth Snapshots ---
+  // Snapshot rows only have data from col F onwards (col A is empty), so we
+  // cannot skip on !row[0] — only skip rows where both A and F are empty.
   const snapshots: NetWorthSnapshot[] = [];
   let inSnapshots = false;
   for (const row of nw) {
-    if (!row[0]) continue;
+    if (!inSnapshots && !row[0] && !row[5]) continue;
     if (row[5] === "Date") { inSnapshots = true; continue; }
     if (!inSnapshots) continue;
     const dateVal = row[5];

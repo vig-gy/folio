@@ -44,7 +44,7 @@ async function getAuthClient() {
 
 export async function getAllSheetData(): Promise<Record<string, string[][]>> {
   const ranges = [
-    "Net Worth!A1:Z120",
+    "Net Worth!A1:Z300",
     "Equities!A1:Z200",
     "Portfolio Allocation!A1:Z60",
     "Dashboard!A1:Z50",

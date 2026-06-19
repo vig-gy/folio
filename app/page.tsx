@@ -79,7 +79,7 @@ function SubTabs({ tabs, active, onChange }: {
 
 type Range = "6M" | "12M" | "YTD" | "1Y" | "custom";
 
-// Parses snapshot date strings like "01-Jun-23" into a Date
+// Parses snapshot date strings like "01-Jun-2023" into a Date
 function parseSnapDate(d: string): Date {
   const p = d.split("-");
   if (p.length < 3) return new Date(0);
@@ -87,7 +87,9 @@ function parseSnapDate(d: string): Date {
     Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5,
     Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11,
   };
-  return new Date(2000 + parseInt(p[2]), mo[p[1]] ?? 0, 1);
+  const yr = parseInt(p[2]);
+  const year = yr < 100 ? 2000 + yr : yr; // handle both "23" and "2023"
+  return new Date(year, mo[p[1]] ?? 0, 1);
 }
 
 function SnapshotScreen({ data }: { data: PortfolioData }) {
@@ -101,19 +103,21 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
   const changePct = prev?.netWorth ? (change / prev.netWorth) * 100 : 0;
 
   const filteredSnapshots = useMemo(() => {
-    const now = new Date();
+    // Use the latest snapshot as the reference point, not today,
+    // so ranges work correctly even if the sheet isn't updated recently.
+    const latest = parseSnapDate(data.snapshots[data.snapshots.length - 1]?.date ?? "");
     let from: Date;
-    let to: Date = now;
+    let to: Date = latest;
     switch (range) {
-      case "6M":  from = new Date(now.getFullYear(), now.getMonth() - 6, 1);  break;
-      case "12M": from = new Date(now.getFullYear(), now.getMonth() - 12, 1); break;
-      case "YTD": from = new Date(now.getFullYear(), 0, 1);                   break;
-      case "1Y":  from = new Date(now.getFullYear() - 1, now.getMonth(), 1);  break;
+      case "6M":  from = new Date(latest.getFullYear(), latest.getMonth() - 6,  1); break;
+      case "12M": from = new Date(latest.getFullYear(), latest.getMonth() - 12, 1); break;
+      case "YTD": from = new Date(latest.getFullYear(), 0, 1);                      break;
+      case "1Y":  from = new Date(latest.getFullYear() - 1, latest.getMonth(), 1);  break;
       case "custom":
         from = customFrom ? new Date(customFrom) : new Date(2000, 0, 1);
-        to   = customTo   ? new Date(customTo)   : now;
+        to   = customTo   ? new Date(customTo)   : latest;
         break;
-      default:    from = new Date(2000, 0, 1);
+      default: from = new Date(2000, 0, 1);
     }
     return data.snapshots.filter(s => {
       const d = parseSnapDate(s.date);
