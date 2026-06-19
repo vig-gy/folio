@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
-  LayoutDashboard, Briefcase, TrendingUp, Shield, Search,
+  LayoutDashboard, Briefcase, TrendingUp, Shield, Search, Sparkles,
   RefreshCw, Lock, Eye, EyeOff,
   ArrowUpRight, ArrowDownRight, Send, AlertCircle,
   CheckCircle, Info, ChevronDown, ChevronUp
@@ -29,7 +29,7 @@ const NAV = [
   { id: "portfolio", icon: Briefcase,        label: "Portfolio" },
   { id: "insights",  icon: TrendingUp,       label: "Insights" },
   { id: "plan",      icon: Shield,           label: "Plan" },
-  { id: "research",  icon: Search,           label: "Research" },
+  { id: "ai",        icon: Sparkles,          label: "AI" },
 ];
 
 function SectionHeader({ title }: { title: string }) {
@@ -77,25 +77,65 @@ function SubTabs({ tabs, active, onChange }: {
 
 // ─── Home ────────────────────────────────────────────────────────────────────
 
+type Range = "6M" | "12M" | "YTD" | "1Y" | "custom";
+
+// Parses snapshot date strings like "01-Jun-23" into a Date
+function parseSnapDate(d: string): Date {
+  const p = d.split("-");
+  if (p.length < 3) return new Date(0);
+  const mo: Record<string, number> = {
+    Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5,
+    Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11,
+  };
+  return new Date(2000 + parseInt(p[2]), mo[p[1]] ?? 0, 1);
+}
+
 function SnapshotScreen({ data }: { data: PortfolioData }) {
+  const [range, setRange]           = useState<Range>("12M");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo]     = useState("");
+
   const last = data.snapshots[data.snapshots.length - 1];
   const prev = data.snapshots[data.snapshots.length - 2];
-  const change = last && prev ? last.netWorth - prev.netWorth : 0;
+  const change    = last && prev ? last.netWorth - prev.netWorth : 0;
   const changePct = prev?.netWorth ? (change / prev.netWorth) * 100 : 0;
 
-  const chartData = data.snapshots.slice(-12).map(s => ({
+  const filteredSnapshots = useMemo(() => {
+    const now = new Date();
+    let from: Date;
+    let to: Date = now;
+    switch (range) {
+      case "6M":  from = new Date(now.getFullYear(), now.getMonth() - 6, 1);  break;
+      case "12M": from = new Date(now.getFullYear(), now.getMonth() - 12, 1); break;
+      case "YTD": from = new Date(now.getFullYear(), 0, 1);                   break;
+      case "1Y":  from = new Date(now.getFullYear() - 1, now.getMonth(), 1);  break;
+      case "custom":
+        from = customFrom ? new Date(customFrom) : new Date(2000, 0, 1);
+        to   = customTo   ? new Date(customTo)   : now;
+        break;
+      default:    from = new Date(2000, 0, 1);
+    }
+    return data.snapshots.filter(s => {
+      const d = parseSnapDate(s.date);
+      return d >= from && d <= to;
+    });
+  }, [data.snapshots, range, customFrom, customTo]);
+
+  const chartData = filteredSnapshots.map(s => ({
     date: s.date.replace(/^\d+-/, ""),
     value: s.netWorth,
   }));
 
-  const snaps13 = data.snapshots.slice(-13);
-  const monthlyChanges = snaps13.slice(1).map((s, i) => ({
+  const monthlyChanges = filteredSnapshots.slice(1).map((s, i) => ({
     date: s.date.replace(/^\d+-/, ""),
-    change: s.netWorth - snaps13[i].netWorth,
+    change: s.netWorth - filteredSnapshots[i].netWorth,
   }));
+
+  const RANGES: Range[] = ["6M", "12M", "YTD", "1Y", "custom"];
 
   return (
     <div className="space-y-4">
+      {/* Hero */}
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0b6b3a]/5 to-transparent pointer-events-none" />
         <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-2">Net Worth (excl. CPF)</p>
@@ -109,61 +149,105 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
         <p className="text-xs text-slate-600 mt-1">Updated {data.lastUpdated}</p>
       </div>
 
+      {/* Metrics */}
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="Gross Assets" value={fmtSGD(data.grossAssets)} sub="before loans" />
-        <MetricCard label="Loans" value={fmtSGD(data.totalLoans)} sub="outstanding" negative />
-        <MetricCard label="incl. CPF OA" value={fmtSGD(data.netWorthInclOa)} positive />
-        <MetricCard label="incl. Full CPF" value={fmtSGD(data.netWorthInclFullCpf)} positive />
+        <MetricCard label="Gross Assets"    value={fmtSGD(data.grossAssets)}        sub="before loans" />
+        <MetricCard label="Loans"           value={fmtSGD(data.totalLoans)}         sub="outstanding" negative />
+        <MetricCard label="incl. CPF OA"    value={fmtSGD(data.netWorthInclOa)}     positive />
+        <MetricCard label="incl. Full CPF"  value={fmtSGD(data.netWorthInclFullCpf)} positive />
       </div>
 
-      {/* Net worth trend — zoomed Y axis makes movement visible */}
+      {/* Range selector — controls both charts below */}
+      <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-3 space-y-2">
+        <div className="flex gap-1.5">
+          {RANGES.map(r => (
+            <button key={r} onClick={() => setRange(r)}
+              className={`flex-1 text-[10px] font-semibold py-1.5 rounded-xl transition-all ${
+                range === r
+                  ? "bg-[#0b6b3a]/25 text-[#a5f4d4] border border-[#0b6b3a]/40"
+                  : "bg-white/[0.04] text-slate-500 border border-transparent hover:text-slate-400"
+              }`}>
+              {r === "custom" ? "Custom" : r}
+            </button>
+          ))}
+        </div>
+
+        {range === "custom" && (
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="month"
+              value={customFrom}
+              onChange={e => setCustomFrom(e.target.value)}
+              className="flex-1 bg-[#0f0f18] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#0b6b3a]/40"
+            />
+            <span className="text-slate-600 text-xs flex-shrink-0">→</span>
+            <input
+              type="month"
+              value={customTo}
+              onChange={e => setCustomTo(e.target.value)}
+              className="flex-1 bg-[#0f0f18] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#0b6b3a]/40"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Net worth trend */}
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
-        <SectionHeader title="Net worth — 12 months" />
-        <ResponsiveContainer width="100%" height={110}>
-          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.index} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={COLORS.index} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
-            <YAxis hide domain={["dataMin - 20000", "dataMax + 10000"]} />
-            <Tooltip content={<TTip />} />
-            <Area type="monotone" dataKey="value" name="Net Worth" stroke={COLORS.index} fill="url(#g1)" strokeWidth={2} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
+        <SectionHeader title={`Net worth — ${range === "custom" ? "custom range" : range}`} />
+        {chartData.length > 1 ? (
+          <ResponsiveContainer width="100%" height={110}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLORS.index} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={COLORS.index} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis hide domain={["dataMin - 20000", "dataMax + 10000"]} />
+              <Tooltip content={<TTip />} />
+              <Area type="monotone" dataKey="value" name="Net Worth" stroke={COLORS.index} fill="url(#g1)" strokeWidth={2} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-xs text-slate-600 text-center py-8">No data for this range</p>
+        )}
       </div>
 
-      {/* Monthly change bars — green up, red down */}
+      {/* Monthly change bars */}
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
         <SectionHeader title="Monthly change" />
-        <ResponsiveContainer width="100%" height={80}>
-          <BarChart data={monthlyChanges} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
-            <YAxis hide />
-            <Tooltip
-              formatter={(v: any) => [`${Number(v) >= 0 ? "+" : "-"}${fmtSGD(Number(v))}`, "Change"]}
-              contentStyle={{ background: "#1e1e2a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
-              labelStyle={{ color: "#94a3b8", fontSize: "11px" }}
-            />
-            <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
-            <Bar dataKey="change" radius={[2, 2, 0, 0]}>
-              {monthlyChanges.map((e, i) => (
-                <Cell key={i} fill={e.change >= 0 ? "#10b981" : "#f43f5e"} fillOpacity={0.85} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {monthlyChanges.length > 0 ? (
+          <ResponsiveContainer width="100%" height={80}>
+            <BarChart data={monthlyChanges} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip
+                formatter={(v: any) => [`${Number(v) >= 0 ? "+" : "-"}${fmtSGD(Number(v))}`, "Change"]}
+                contentStyle={{ background: "#1e1e2a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
+                labelStyle={{ color: "#94a3b8", fontSize: "11px" }}
+              />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
+              <Bar dataKey="change" radius={[2, 2, 0, 0]}>
+                {monthlyChanges.map((e, i) => (
+                  <Cell key={i} fill={e.change >= 0 ? "#10b981" : "#f43f5e"} fillOpacity={0.85} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-xs text-slate-600 text-center py-6">No data for this range</p>
+        )}
       </div>
 
+      {/* Portfolio split */}
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4 space-y-3">
         <SectionHeader title="Portfolio split" />
         {[
-          { label: "Equities",      value: data.equitiesValue,    color: COLORS.index },
-          { label: "Cash",          value: data.cashValue,        color: COLORS.emerald },
-          { label: "Bonds (SSBs)",  value: data.bondsValue,       color: COLORS.bonds },
-          { label: "Crypto + Gold", value: data.cryptoGoldValue,  color: COLORS.amber },
+          { label: "Equities",      value: data.equitiesValue,   color: COLORS.index },
+          { label: "Cash",          value: data.cashValue,       color: COLORS.emerald },
+          { label: "Bonds (SSBs)",  value: data.bondsValue,      color: COLORS.bonds },
+          { label: "Crypto + Gold", value: data.cryptoGoldValue, color: COLORS.amber },
         ].map(item => (
           <div key={item.label} className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
@@ -1000,7 +1084,7 @@ function ResearchAIScreen({ data }: { data: PortfolioData }) {
   const [tab, setTab] = useState("research");
   return (
     <div>
-      <SubTabs tabs={[{ id: "research", label: "Research" }, { id: "ai", label: "AI Advisor" }]} active={tab} onChange={setTab} />
+      <SubTabs tabs={[{ id: "research", label: "Research Advisor" }, { id: "ai", label: "Portfolio Advisor" }]} active={tab} onChange={setTab} />
       {tab === "research" && <ResearchScreen />}
       {tab === "ai"       && <AIScreen data={data} />}
     </div>
@@ -1029,7 +1113,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     <div className="min-h-screen flex flex-col items-center justify-center px-8 bg-[#0a0a0f]">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <img src="/folio-app-logo-192.png" alt="Folio" className="w-24 h-24 rounded-2xl mx-auto mb-4" />
+          <img src="/folio-app-logo-512.png" alt="Folio" className="w-48 h-48 rounded-3xl mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-slate-100">Folio</h1>
           <p className="text-sm text-slate-500 mt-1">Personal Portfolio Analyzer</p>
         </div>
@@ -1126,7 +1210,7 @@ export default function FolioApp() {
             {screen === "portfolio" && <PortfolioScreen  data={portfolio} />}
             {screen === "insights"  && <InsightsScreen   data={portfolio} />}
             {screen === "plan"      && <PlanScreen       data={portfolio} />}
-            {screen === "research"  && <ResearchAIScreen data={portfolio} />}
+            {screen === "ai"        && <ResearchAIScreen data={portfolio} />}
           </>
         )}
       </main>
