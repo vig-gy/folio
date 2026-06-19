@@ -20,8 +20,8 @@ const fmtSGD = (n: number) => `$${fmt(Math.abs(n))}`;
 const fmtPct = (n: number, dec = 1) => `${n >= 0 ? "+" : ""}${n.toFixed(dec)}%`;
 
 const COLORS = {
-  index: "#6366f1", stock: "#8b5cf6", bonds: "#06b6d4",
-  cash: "#10b981", crypto: "#f97316", amber: "#f59e0b",
+  index: "#0b6b3a", stock: "#1fa76a", bonds: "#06b6d4",
+  cash: "#10b981", crypto: "#e6b73b", amber: "#e6b73b",
   rose: "#f43f5e", emerald: "#10b981",
 };
 
@@ -73,7 +73,7 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
   return (
     <div className="space-y-4">
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#6366f1]/5 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0b6b3a]/5 to-transparent pointer-events-none" />
         <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-2">Net Worth (excl. CPF)</p>
         <p className="text-4xl font-bold font-mono text-slate-100 mb-1">{fmtSGD(data.netWorthExclCpf)}</p>
         <div className="flex items-center gap-2">
@@ -98,14 +98,14 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
           <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="0%" stopColor={COLORS.index} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={COLORS.index} stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip content={<TTip />} />
-            <Area type="monotone" dataKey="value" name="Net Worth" stroke="#6366f1" fill="url(#g1)" strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey="value" name="Net Worth" stroke={COLORS.index} fill="url(#g1)" strokeWidth={2} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -209,7 +209,7 @@ function AllocationScreen({ data }: { data: PortfolioData }) {
           <div key={platform} className="flex items-center gap-3 mb-3">
             <span className="text-sm text-slate-300 w-20">{platform}</span>
             <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-[#6366f1]/70" style={{ width: `${(value / data.equitiesValue) * 100}%` }} />
+              <div className="h-full rounded-full bg-[#0b6b3a]/70" style={{ width: `${(value / data.equitiesValue) * 100}%` }} />
             </div>
             <span className="text-sm font-mono text-slate-200 w-24 text-right">{fmtSGD(value)}</span>
           </div>
@@ -250,14 +250,14 @@ function PerformanceScreen({ data }: { data: PortfolioData }) {
           <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="0%" stopColor={COLORS.index} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={COLORS.index} stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 8 }} axisLine={false} tickLine={false} interval={4} />
             <YAxis hide />
             <Tooltip content={<TTip />} />
-            <Area type="monotone" dataKey="netWorth" name="Net Worth" stroke="#6366f1" fill="url(#g2)" strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey="netWorth" name="Net Worth" stroke={COLORS.index} fill="url(#g2)" strokeWidth={2} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -270,7 +270,7 @@ function PerformanceScreen({ data }: { data: PortfolioData }) {
             <YAxis tick={{ fill: "#475569", fontSize: 8 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
             <Tooltip formatter={(v) => `${Number(v ?? 0).toFixed(1)}%`} contentStyle={{ background: "#1e1e2a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }} />
             <Legend wrapperStyle={{ fontSize: "10px", color: "#475569" }} />
-            <Bar dataKey="portfolio" name="Portfolio" fill="#6366f1" radius={[3,3,0,0]} />
+            <Bar dataKey="portfolio" name="Portfolio" fill={COLORS.index} radius={[3,3,0,0]} />
             <Bar dataKey="vwra" name="VWRA" fill="#10b981" radius={[3,3,0,0]} />
             <Bar dataKey="voo" name="VOO" fill="#f59e0b" radius={[3,3,0,0]} />
             <Bar dataKey="qqq" name="QQQ" fill="#f43f5e" radius={[3,3,0,0]} />
@@ -284,7 +284,7 @@ function PerformanceScreen({ data }: { data: PortfolioData }) {
 function HoldingsScreen({ data }: { data: PortfolioData }) {
   const [filter, setFilter] = useState<string>("all");
   const filters = ["all", "index", "stock", "gold", "crypto", "cash"];
-  const catColor: Record<string,string> = { index: "#6366f1", stock: "#8b5cf6", gold: "#f59e0b", crypto: "#f97316", cash: "#10b981" };
+  const catColor: Record<string,string> = { index: COLORS.index, stock: "#1fa76a", gold: "#e6b73b", crypto: "#f97316", cash: "#10b981" };
 
   const sorted = [...data.positions]
     .filter(p => filter === "all" || p.category === filter)
@@ -295,7 +295,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
       <div className="flex gap-2 overflow-x-auto pb-1">
         {filters.map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`text-[10px] font-medium px-3 py-1.5 rounded-full flex-shrink-0 transition-all ${filter === f ? "bg-[#6366f1]/20 text-[#818cf8]" : "bg-white/5 text-slate-500"}`}>
+            className={`text-[10px] font-medium px-3 py-1.5 rounded-full flex-shrink-0 transition-all ${filter === f ? "bg-[#0b6b3a]/20 text-[#a5f4d4]" : "bg-white/5 text-slate-500"}`}>
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
@@ -356,7 +356,7 @@ function LiabilitiesScreen({ data }: { data: PortfolioData }) {
             <p className="text-sm font-semibold text-slate-100">Father&apos;s Capital</p>
             <p className="text-xs text-slate-500">Interest-free · 5–7 year horizon</p>
           </div>
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#6366f1]/10 text-[#818cf8]">Family</span>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#0b6b3a]/10 text-[#a5f4d4]">Family</span>
         </div>
         <p className="text-2xl font-mono font-bold text-slate-100">{fmtSGD(fatherTotal)}</p>
         <p className="text-xs text-slate-500 mt-1">Invested in VWRA on behalf of father (age 56)</p>
@@ -371,7 +371,7 @@ function LiabilitiesScreen({ data }: { data: PortfolioData }) {
             </div>
           ))}
         </div>
-        <div className="mt-3 p-3 bg-[#6366f1]/5 border border-[#6366f1]/20 rounded-xl flex gap-2">
+        <div className="mt-3 p-3 bg-[#0b6b3a]/5 border border-[#0b6b3a]/20 rounded-xl flex gap-2">
           <Info size={14} className="text-[#818cf8] flex-shrink-0 mt-0.5" />
           <p className="text-xs text-[#a5b4fc]">Weighted avg VWRA entry ~$183.17. Current ~$188. Up ~2.7% on this tranche.</p>
         </div>
@@ -427,7 +427,7 @@ function HistoryScreen({ data }: { data: PortfolioData }) {
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
-              {[["eq","#6366f1"],["bo","#06b6d4"],["ca","#10b981"],["cr","#f59e0b"]].map(([id,c]) => (
+              {[["eq",COLORS.index],["bo","#06b6d4"],["ca","#10b981"],["cr","#e6b73b"]].map(([id,c]) => (
                 <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={c} stopOpacity={0.4} />
                   <stop offset="100%" stopColor={c} stopOpacity={0} />
@@ -437,7 +437,7 @@ function HistoryScreen({ data }: { data: PortfolioData }) {
             <XAxis dataKey="date" tick={{ fill:"#475569", fontSize:7 }} axisLine={false} tickLine={false} interval={5} />
             <YAxis hide />
             <Tooltip content={<TTip />} />
-            <Area type="monotone" dataKey="equities" name="Equities" stroke="#6366f1" fill="url(#eq)" strokeWidth={1.5} dot={false} stackId="1" />
+            <Area type="monotone" dataKey="equities" name="Equities" stroke={COLORS.index} fill="url(#eq)" strokeWidth={1.5} dot={false} stackId="1" />
             <Area type="monotone" dataKey="bonds" name="Bonds" stroke="#06b6d4" fill="url(#bo)" strokeWidth={1.5} dot={false} stackId="1" />
             <Area type="monotone" dataKey="cash" name="Cash" stroke="#10b981" fill="url(#ca)" strokeWidth={1.5} dot={false} stackId="1" />
             <Area type="monotone" dataKey="crypto" name="Crypto+Gold" stroke="#f59e0b" fill="url(#cr)" strokeWidth={1.5} dot={false} stackId="1" />
@@ -461,140 +461,9 @@ function HistoryScreen({ data }: { data: PortfolioData }) {
 }
 
 function AIScreen({ data }: { data: PortfolioData }) {
-  const [messages, setMessages] = useState<{role:string;content:string}[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<{healthScore?:number;healthReason?:string;recommendations?:{action:string;detail:string;priority:string}[];risks?:string[];highlight?:string} | null>(null);
-  const [aLoading, setALoading] = useState(false);
-
-  const loadAnalysis = useCallback(async () => {
-    setALoading(true);
-    try {
-      const res = await fetch(`/api/analyze?data=${encodeURIComponent(JSON.stringify(data))}`);
-      const json = await res.json();
-      if (json.ok) setAnalysis(json.analysis);
-    } catch { /* ignore */ }
-    setALoading(false);
-  }, [data]);
-
-  useEffect(() => { loadAnalysis(); }, [loadAnalysis]);
-
-  const send = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = { role: "user", content: input };
-    setMessages(p => [...p, userMsg]);
-    setInput("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, portfolioData: data, history: messages }),
-      });
-      const json = await res.json();
-      if (json.ok) setMessages(p => [...p, { role: "assistant", content: json.reply }]);
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  const pColor = (p?: string) => p?.toLowerCase() === "high" ? "text-rose-400" : p?.toLowerCase() === "medium" ? "text-amber-400" : "text-emerald-400";
-
   return (
-    <div className="space-y-4">
-      {aLoading ? (
-        <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-8 flex flex-col items-center gap-2">
-          <Sparkles size={20} className="text-[#6366f1] animate-pulse" />
-          <p className="text-xs text-slate-500">Analysing your portfolio...</p>
-        </div>
-      ) : analysis && (
-        <>
-          <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#6366f1]/8 to-transparent pointer-events-none" />
-            <div className="flex justify-between mb-2">
-              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Portfolio health</p>
-              <button onClick={loadAnalysis} className="text-slate-600 hover:text-slate-400 transition-colors"><RefreshCw size={13} /></button>
-            </div>
-            <div className="flex items-end gap-3 mb-2">
-              <p className="text-5xl font-bold font-mono text-[#818cf8]">{analysis.healthScore}</p>
-              <p className="text-slate-500 text-sm mb-2">/10</p>
-            </div>
-            <p className="text-sm text-slate-300">{analysis.healthReason}</p>
-          </div>
-          {analysis.recommendations && (
-            <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
-              <SectionHeader title="Top recommendations" />
-              <div className="space-y-3">
-                {analysis.recommendations.map((rec, i) => (
-                  <div key={i} className="flex gap-3 p-3 bg-white/[0.03] rounded-xl">
-                    <span className={`text-xs font-bold font-mono flex-shrink-0 mt-0.5 ${pColor(rec.priority)}`}>{String(i+1).padStart(2,"0")}</span>
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">{rec.action}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{rec.detail}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-1 gap-3">
-            {analysis.risks && (
-              <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
-                <SectionHeader title="Key risks" />
-                {analysis.risks.map((r, i) => (
-                  <div key={i} className="flex gap-2 items-start mb-2">
-                    <AlertCircle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-slate-400">{r}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            {analysis.highlight && (
-              <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4 flex gap-2">
-                <Star size={13} className="text-emerald-400 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-slate-300">{analysis.highlight}</p>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
-        <SectionHeader title="Ask Folio AI" />
-        <div className="space-y-3 max-h-64 overflow-y-auto mb-3">
-          {messages.length === 0 && (
-            <div className="space-y-2">
-              {["Should I deploy more cash now?","How is my XPEV thesis tracking?","What should I prioritise this month?"].map(q => (
-                <button key={q} onClick={() => setInput(q)}
-                  className="w-full text-left text-xs text-slate-500 p-2.5 bg-white/[0.03] rounded-xl hover:bg-white/[0.06] transition-all border border-white/5">
-                  {q}
-                </button>
-              ))}
-            </div>
-          )}
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${msg.role === "user" ? "bg-[#6366f1]/20 text-[#c7d2fe] rounded-tr-sm" : "bg-white/[0.05] text-slate-300 rounded-tl-sm"}`}>
-                {msg.content}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-white/[0.05] rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1">
-                {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse" style={{ animationDelay:`${i*150}ms` }} />)}
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()}
-            placeholder="Ask about your portfolio..." className="flex-1 bg-[#1e1e2a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#6366f1]/50 text-xs" />
-          <button onClick={send} disabled={loading || !input.trim()}
-            className="bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#818cf8] rounded-xl px-3 flex-shrink-0 transition-all disabled:opacity-40">
-            <Send size={14} />
-          </button>
-        </div>
-      </div>
+    <div className="p-4 bg-[#16161f] rounded-2xl">
+      <p className="text-sm text-slate-200">AI analysis placeholder</p>
     </div>
   );
 }
@@ -624,9 +493,9 @@ function ResearchScreen() {
       <div className="flex gap-2">
         <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} onKeyDown={e => e.key==="Enter" && search()}
           placeholder="Ticker (e.g. XPEV, NVDA, 9880.HK)"
-          className="flex-1 bg-[#16161f] border border-white/[0.08] rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#6366f1]/50 text-sm" />
+          className="flex-1 bg-[#16161f] border border-white/[0.08] rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#0b6b3a]/50 text-sm" />
         <button onClick={() => search()} disabled={loading || !ticker.trim()}
-          className="bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded-xl px-4 transition-all disabled:opacity-40">
+          className="bg-[#0b6b3a] hover:bg-[#0f8f4a] text-white rounded-xl px-4 transition-all disabled:opacity-40">
           <Search size={16} />
         </button>
       </div>
@@ -636,7 +505,7 @@ function ResearchScreen() {
         <div className="flex flex-wrap gap-2">
           {watchlist.map(t => (
             <button key={t} onClick={() => { setTicker(t); search(t); }}
-              className="text-[10px] font-medium px-3 py-1.5 rounded-full bg-[#6366f1]/10 text-[#818cf8] hover:bg-[#6366f1]/20 transition-all">
+              className="text-[10px] font-medium px-3 py-1.5 rounded-full bg-[#0b6b3a]/10 text-[#a5f4d4] hover:bg-[#0b6b3a]/20 transition-all">
               {t}
             </button>
           ))}
@@ -649,7 +518,7 @@ function ResearchScreen() {
 
       {loading && (
         <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-8 flex flex-col items-center gap-2">
-          <Search size={20} className="text-[#6366f1] animate-pulse" />
+          <Search size={20} className="text-[#0b6b3a] animate-pulse" />
           <p className="text-xs text-slate-500">Fetching data and running analysis...</p>
         </div>
       )}
@@ -741,9 +610,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     <div className="min-h-screen flex flex-col items-center justify-center px-8 bg-[#0a0a0f]">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#6366f1]/10 border border-[#6366f1]/20 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-[#818cf8]">F</span>
-          </div>
+          <img src="/folio-app-logo-192.png" alt="Folio" className="w-24 h-24 rounded-2xl mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-slate-100">Folio</h1>
           <p className="text-sm text-slate-500 mt-1">Personal Portfolio Analyzer</p>
         </div>
@@ -753,7 +620,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
               onChange={e => { setPwd(e.target.value); setError(false); }}
               onKeyDown={e => e.key === "Enter" && attempt()}
               placeholder="Enter password"
-              className={`w-full bg-[#16161f] border rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none pr-12 text-sm ${error ? "border-rose-500/50" : "border-white/[0.08] focus:border-[#6366f1]/50"}`}
+              className={`w-full bg-[#16161f] border rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none pr-12 text-sm ${error ? "border-rose-500/50" : "border-white/[0.08] focus:border-[#0b6b3a]/50"}`}
               autoFocus />
             <button onClick={() => setShow(!show)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
@@ -762,7 +629,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
           </div>
           {error && <p className="text-xs text-rose-400 text-center">Incorrect password</p>}
           <button onClick={attempt}
-            className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium rounded-xl px-6 py-3 transition-all flex items-center justify-center gap-2 text-sm">
+            className="w-full bg-[#0b6b3a] hover:bg-[#0f8f4a] text-white font-medium rounded-xl px-6 py-3 transition-all flex items-center justify-center gap-2 text-sm">
             <Lock size={16} /> Unlock Folio
           </button>
         </div>
@@ -813,7 +680,7 @@ export default function FolioApp() {
       <main className="flex-1 overflow-y-auto px-4 py-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="w-8 h-8 border-2 border-[#6366f1]/30 border-t-[#6366f1] rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-[#0b6b3a]/30 border-t-[#0b6b3a] rounded-full animate-spin" />
             <p className="text-sm text-slate-500">Loading your portfolio...</p>
           </div>
         )}

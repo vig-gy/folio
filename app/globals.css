@@ -5,21 +5,21 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #0f0f18;
-  --bg-card: #16161f;
-  --bg-card-hover: #1e1e2a;
-  --border: rgba(255,255,255,0.06);
+  --bg-primary: #031211;
+  --bg-secondary: #07261b;
+  --bg-card: #0b1f18;
+  --bg-card-hover: #123025;
+  --border: rgba(255,255,255,0.05);
   --border-strong: rgba(255,255,255,0.12);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
-  --iris: #6366f1;
-  --iris-light: #818cf8;
+  --text-primary: #f7f7f2;
+  --text-secondary: #a5b4ac;
+  --text-muted: #7f8b82;
+  --iris: #10b981;
+  --iris-light: #34d399;
   --emerald: #10b981;
   --emerald-light: #34d399;
-  --amber: #f59e0b;
-  --amber-light: #fbbf24;
+  --amber: #e6b73b;
+  --amber-light: #f5c54a;
   --rose: #f43f5e;
   --rose-light: #fb7185;
 }
@@ -94,8 +94,8 @@ body {
            transition-all duration-150 text-sm w-full;
   }
   .btn-primary {
-    @apply bg-iris-500 hover:bg-iris-600 text-white font-medium rounded-xl px-6 py-3
-           transition-all duration-150 active:scale-[0.98] text-sm;
+      @apply bg-iris-500 hover:bg-iris-600 text-white font-medium rounded-xl px-6 py-3
+        transition-all duration-150 active:scale-[0.98] text-sm;
   }
   .btn-secondary {
     @apply bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 font-medium rounded-xl px-6 py-3

@@ -270,7 +270,7 @@ export function parsePortfolioData(
   const loans: Loan[] = [];
   let totalLoanAmount = 0;
   for (const row of liabSheet) {
-    if (!row[1] || row[1] === "Loan Name") continue;
+    if (!row[1] || row[1] === "Loan Name" || row[1].trim().toUpperCase() === "TOTAL") continue;
     const amount = parseSGD(row[8]);
     if (amount > 0) {
       loans.push({
