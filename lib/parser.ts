@@ -40,6 +40,19 @@ export interface Loan {
   fxRate?: number;
 }
 
+export interface BondPosition {
+  name: string;
+  issueCode: string;
+  amount: number;
+  maturity: string;
+  yieldPct: number;
+}
+
+export interface BankAccount {
+  name: string;
+  balance: number;
+}
+
 export interface CPFData {
   oa: number;
   sa: number;
@@ -50,6 +63,15 @@ export interface CPFData {
   combinedOaSa: number;
   estimatedFrs3: number;
   estimatedFrs35: number;
+}
+
+export interface InvestmentMetrics {
+  totalReturn: number;      // "Total P/L%" from Equities sheet — return on cost basis, inception to date
+  annualisedReturn: number; // "Avg Annualised P/L%" — XIRR accounting for deposit timing
+  inceptionDate: string;    // date of first transaction e.g. "10-Mar-2022"
+  inceptionMonth: string;   // "YYYY-MM" form of inceptionDate for price lookups
+  currentBalance: number;   // total current market value of all investments
+  costBasis: number;        // total cost basis (Breakeven Balance)
 }
 
 export interface PortfolioData {
@@ -73,6 +95,8 @@ export interface PortfolioData {
 
   // Positions
   positions: Position[];
+  bondPositions: BondPosition[];
+  bankAccounts: BankAccount[];
 
   // Snapshots for charts
   snapshots: NetWorthSnapshot[];
@@ -96,6 +120,7 @@ export interface PortfolioData {
     cryptoGold: number;
   };
 
+  investmentMetrics: InvestmentMetrics;
   lastUpdated: string;
 }
 
@@ -253,20 +278,65 @@ export function parsePortfolioData(
     else if (pos.category === "gold" || pos.category === "crypto") cryptoGold += pos.valueSGD;
   }
 
-  // Cash from Cash sheet
-  let totalBankCash = 0;
-  if (cashSheet[1]) {
-    for (let i = 1; i < cashSheet[1].length - 1; i++) {
-      totalBankCash += parseSGD(cashSheet[1][i]);
-    }
+  // Cash sheet: row[1] = account names, row[2] = "Current Balance" + values
+  const bankAccounts: BankAccount[] = [];
+  const cashHeaders = cashSheet[1] || [];
+  const cashBalances = cashSheet[2] || [];
+  for (let i = 1; i < cashHeaders.length; i++) {
+    const name = cashHeaders[i]?.trim();
+    if (!name || name === "Total") continue;
+    const balance = parseSGD(cashBalances[i]);
+    if (balance > 0) bankAccounts.push({ name, balance });
   }
 
-  // Brokerage cash from positions
-  const brokerageCash = positions
-    .filter((p) => p.category === "cash")
-    .reduce((sum, p) => sum + p.valueSGD, 0);
+  // Investment metrics from Equities sheet summary (col 11 = label, col 12 = value)
+  // The sheet pre-computes XIRR ("Avg Annualised P/L%") and total return ("Total P/L%")
+  // using actual transaction cashflow timing — far more accurate than snapshot-derived returns.
+  const equitiesSheet = sheets["Equities"] || [];
+  let investTotalReturn = 0, investAnnualisedReturn = 0;
+  let investCurrentBalance = 0, investCostBasis = 0;
+  let investInceptionDate = "";
+  const MO_MAP: Record<string, string> = {
+    Jan:"01",Feb:"02",Mar:"03",Apr:"04",May:"05",Jun:"06",
+    Jul:"07",Aug:"08",Sep:"09",Oct:"10",Nov:"11",Dec:"12",
+  };
+  for (const row of equitiesSheet) {
+    // First transaction row: S/N is a positive integer, col 1 is a date string
+    if (!investInceptionDate) {
+      const sn = parseInt(row[0]);
+      if (!isNaN(sn) && sn === 1 && row[1]?.match(/^\d{2}-[A-Za-z]{3}-\d{4}$/)) {
+        investInceptionDate = row[1].trim();
+      }
+    }
+    const label = row[11]?.trim();
+    if (label === "Total Current Balance")   investCurrentBalance    = parseSGD(row[12]);
+    if (label === "Total Breakeven Balance")  investCostBasis         = parseSGD(row[12]);
+    if (label === "Total P/L%")              investTotalReturn       = parsePct(row[12]);
+    if (label === "Avg Annualised P/L%")     investAnnualisedReturn  = parsePct(row[12]);
+  }
+  // Convert inception date "10-Mar-2022" → "2022-03"
+  const inceptionParts = investInceptionDate.split("-");
+  const investInceptionMonth = inceptionParts.length === 3
+    ? `${inceptionParts[2]}-${MO_MAP[inceptionParts[1]] ?? "01"}`
+    : "";
 
-  const totalCash = totalBankCash + brokerageCash;
+  // Bond positions from Bonds sheet
+  // Row 0 = headers; subsequent rows = individual SSBs until sub-total rows
+  const bondsSheet = sheets["Bonds"] || [];
+  const bondPositions: BondPosition[] = [];
+  for (const row of bondsSheet) {
+    if (!row[0] || row[0] === "Securities Name") continue;
+    if (!row[1] || !row[5]) continue;
+    const amount = parseSGD(row[5]);
+    if (amount <= 0) continue;
+    bondPositions.push({
+      name: row[0].trim(),
+      issueCode: row[1].trim(),
+      amount,
+      maturity: row[6]?.trim() || "",
+      yieldPct: parsePct(row[7]),
+    });
+  }
 
   // --- Loans ---
   const loans: Loan[] = [];
@@ -320,7 +390,7 @@ export function parsePortfolioData(
     netWorthInclFullCpf,
     grossAssets,
     totalLoans: totalLoanAmount || totalLoans,
-    cashValue: totalCash || cashValue,
+    cashValue,          // from Net Worth summary — authoritative (bank + platform)
     equitiesValue,
     bondsValue,
     cryptoGoldValue,
@@ -328,6 +398,8 @@ export function parsePortfolioData(
     targetBonds,
     targetCrypto,
     positions,
+    bondPositions,
+    bankAccounts,
     snapshots,
     loans,
     totalLoanAmount,
@@ -337,8 +409,16 @@ export function parsePortfolioData(
       indexFunds,
       individualStocks,
       bonds: bondsValue,
-      cash: totalCash || cashValue,
+      cash: cashValue,  // from Net Worth summary
       cryptoGold,
+    },
+    investmentMetrics: {
+      totalReturn:       investTotalReturn,
+      annualisedReturn:  investAnnualisedReturn,
+      inceptionDate:     investInceptionDate,
+      inceptionMonth:    investInceptionMonth,
+      currentBalance:    investCurrentBalance,
+      costBasis:         investCostBasis,
     },
     lastUpdated,
   };

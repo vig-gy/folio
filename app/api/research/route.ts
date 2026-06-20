@@ -1,41 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
+import YahooFinanceClass from "yahoo-finance2";
 
 export const runtime = "nodejs";
 
-const FMP_KEY = process.env.FMP_API_KEY!;
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY!;
+// v3 default export is the class constructor, not an instance
+const yahooFinance = new (YahooFinanceClass as any)({ suppressNotices: ["ripHistorical"] });
 
-async function fetchFMP(endpoint: string) {
-  const res = await fetch(
-    `https://financialmodelingprep.com/api/v3/${endpoint}&apikey=${FMP_KEY}`
-  );
-  if (!res.ok) return null;
-  return res.json();
-}
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY!;
 
 export async function GET(req: NextRequest) {
   const ticker = req.nextUrl.searchParams.get("ticker");
   if (!ticker) return NextResponse.json({ error: "No ticker provided" }, { status: 400 });
 
   try {
-    // Fetch data in parallel
-    const [profile, quote, income, ratios, news] = await Promise.all([
-      fetchFMP(`profile/${ticker}?`),
-      fetchFMP(`quote/${ticker}?`),
-      fetchFMP(`income-statement/${ticker}?limit=3&`),
-      fetchFMP(`ratios-ttm/${ticker}?`),
-      fetchFMP(`stock_news?tickers=${ticker}&limit=5&`),
+    const [quote, summary, searchResults] = await Promise.allSettled([
+      yahooFinance.quote(ticker),
+      yahooFinance.quoteSummary(ticker, {
+        modules: ["price", "assetProfile", "defaultKeyStatistics", "summaryDetail"],
+      }),
+      yahooFinance.search(ticker, { newsCount: 5, quotesCount: 0 }),
     ]);
 
+    // yahoo-finance2's quoteSummary overloads don't infer cleanly; cast to any
+    const q: any  = quote.status         === "fulfilled" ? quote.value         : null;
+    const s: any  = summary.status       === "fulfilled" ? summary.value       : null;
+    const sr: any = searchResults.status === "fulfilled" ? searchResults.value : null;
+
+    const profile = s?.assetProfile ?? {};
+    const price   = s?.price ?? {};
+    const stats   = s?.defaultKeyStatistics ?? {};
+    const detail  = s?.summaryDetail ?? {};
+
     const companyData = {
-      profile: profile?.[0] || {},
-      quote: quote?.[0] || {},
-      income: income?.[0] || {},
-      ratios: ratios?.[0] || {},
-      recentNews: news?.slice(0, 5) || [],
+      profile: {
+        companyName: q?.longName ?? q?.shortName ?? ticker,
+        sector: (profile as any).sector ?? (q as any)?.sector ?? "Unknown",
+        mktCap: (price as any).marketCap?.raw ?? (q as any)?.marketCap ?? 0,
+        price: (q as any)?.regularMarketPrice ?? (price as any).regularMarketPrice?.raw ?? 0,
+        currency: (q as any)?.currency ?? "USD",
+        exchange: (q as any)?.fullExchangeName ?? "",
+      },
+      quote: {
+        changesPercentage: ((q as any)?.regularMarketChangePercent ?? 0) * 100,
+        change: (q as any)?.regularMarketChange ?? 0,
+        dayHigh: (q as any)?.regularMarketDayHigh ?? 0,
+        dayLow: (q as any)?.regularMarketDayLow ?? 0,
+        fiftyTwoWeekHigh: (q as any)?.fiftyTwoWeekHigh ?? 0,
+        fiftyTwoWeekLow: (q as any)?.fiftyTwoWeekLow ?? 0,
+        volume: (q as any)?.regularMarketVolume ?? 0,
+      },
+      ratios: {
+        peRatioTTM: (stats as any).trailingEps?.raw
+          ? ((q as any)?.regularMarketPrice ?? 0) / (stats as any).trailingEps.raw
+          : ((detail as any).trailingPE?.raw ?? (q as any)?.trailingPE ?? null),
+        priceToSalesRatioTTM: (stats as any).priceToSalesTrailing12Months?.raw ?? null,
+        forwardPE: (stats as any).forwardPE?.raw ?? (q as any)?.forwardPE ?? null,
+        priceToBook: (stats as any).priceToBook?.raw ?? (q as any)?.priceToBook ?? null,
+      },
+      description: (profile as any).longBusinessSummary?.slice(0, 500) ?? "",
+      recentNews: (sr?.news ?? []).slice(0, 5).map((n: any) => ({
+        title: n.title,
+        publishedDate: new Date(n.providerPublishTime * 1000).toISOString(),
+        url: n.link,
+      })),
     };
 
-    // Claude analysis
     const prompt = `You are a financial analyst. Analyse this stock for a 28-year-old Singapore-based investor with a 5-10 year investment horizon focused on physical AI, technology, and global index investing.
 
 Stock data:
@@ -44,7 +73,7 @@ ${JSON.stringify(companyData, null, 2)}
 Provide a structured assessment with:
 1. One-line verdict (buy/hold/watch/avoid with brief reason)
 2. Bull case (2-3 key points)
-3. Bear case (2-3 key risks)  
+3. Bear case (2-3 key risks)
 4. Valuation (cheap/fair/expensive with one supporting metric)
 5. Fit with a physical AI / tech-focused portfolio
 6. Key metrics to watch over next 12 months
