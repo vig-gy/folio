@@ -11,7 +11,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, LabelList
 } from "recharts";
-import type { PortfolioData, NetWorthSnapshot } from "@/lib/parser";
+import type { PortfolioData, NetWorthSnapshot, Cashflow } from "@/lib/parser";
 
 const fmt = (n: number, dec = 0) =>
   new Intl.NumberFormat("en-SG", { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(n);
@@ -703,23 +703,47 @@ function deriveChartPeriods(snapshots: NetWorthSnapshot[]): ChartPeriod[] {
   return periods;
 }
 
-// Portfolio period return using investment value = equities + bonds + crypto (excludes cash & loans).
-// For ITD, the caller should use investmentMetrics directly (pre-computed XIRR from the sheet).
-// For sub-periods this is approximate — DCA contributions inflate the numerator — but is far
-// more meaningful than using total net worth (which includes undeployed cash and loan liabilities).
-function calcInvestmentPeriodReturn(
-  start: NetWorthSnapshot,
-  end: NetWorthSnapshot,
-  months: number,
-  annualize: boolean
+// Modified Dietz return for a period — strips cash-flow timing effects from the return.
+// Basis: equities + crypto (matches Equities sheet; excludes SSBs to stay consistent with cashflow data).
+// cashflows: positive = deposit into portfolio, negative = withdrawal.
+function modifiedDietz(
+  startValue: number, endValue: number,
+  startMs: number, endMs: number,
+  cashflows: Cashflow[],
+  annualize: boolean, months: number
 ): number | null {
-  const startInvest = start.equities + start.bonds + start.crypto;
-  const endInvest   = end.equities   + end.bonds   + end.crypto;
-  if (startInvest <= 0 || endInvest <= 0) return null;
-  const raw = endInvest / startInvest - 1;
-  const pct = raw * 100;
-  if (!annualize || months <= 0) return parseFloat(pct.toFixed(1));
+  const periodMs = endMs - startMs;
+  if (periodMs <= 0 || startValue <= 0) return null;
+  let sumFlows = 0, weightedFlows = 0;
+  for (const cf of cashflows) {
+    if (cf.dateMs <= startMs || cf.dateMs > endMs) continue;
+    const w = (endMs - cf.dateMs) / periodMs;
+    sumFlows += cf.amountSGD;
+    weightedFlows += w * cf.amountSGD;
+  }
+  const denom = startValue + weightedFlows;
+  if (denom <= 0) return null;
+  const raw = (endValue - startValue - sumFlows) / denom;
+  if (!annualize || months <= 0) return parseFloat((raw * 100).toFixed(1));
   return parseFloat(((Math.pow(1 + raw, 12 / months) - 1) * 100).toFixed(1));
+}
+
+// Chain-link monthly Modified Dietz sub-period returns → annualised TWR.
+// This removes the deposit-timing effect that CAGR / simple ratios cannot avoid.
+function calcTWR(snapshots: NetWorthSnapshot[], cashflows: Cashflow[]): number {
+  if (snapshots.length < 2) return 0;
+  let product = 1;
+  const n = snapshots.length - 1;
+  for (let i = 0; i < n; i++) {
+    const a = snapshots[i], b = snapshots[i + 1];
+    const sv = a.equities + a.crypto;
+    const ev = b.equities + b.crypto;
+    const sm = parseSnapDate(a.date).getTime();
+    const em = parseSnapDate(b.date).getTime();
+    const r = modifiedDietz(sv, ev, sm, em, cashflows, false, 1);
+    if (r !== null) product *= (1 + r / 100);
+  }
+  return (Math.pow(product, 12 / n) - 1) * 100;
 }
 
 function InsightsScreen({ data }: { data: PortfolioData }) {
@@ -736,16 +760,12 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
 
   const first = data.snapshots[0];
   const last  = data.snapshots[data.snapshots.length - 1];
-  const n     = data.snapshots.length - 1; // months of history
-  const years = n / 12;
-  // TWR: annualise the spreadsheet's own P&L% (return on invested capital, strips deposit size effect)
-  const twr = n > 0 && last?.totalPLPct
-    ? (Math.pow(1 + last.totalPLPct / 100, 12 / n) - 1) * 100 : 0;
-  // MWR: net-worth CAGR (wealth growth rate — influenced by when new capital was deployed)
-  const mwr = years > 0 && first?.netWorth > 0
-    ? (Math.pow(last.netWorth / first.netWorth, 1 / years) - 1) * 100 : 0;
-  const totalGainPct = first?.netWorth > 0
-    ? ((last.netWorth - first.netWorth) / first.netWorth) * 100 : 0;
+  const n     = data.snapshots.length - 1;
+  // TWR: chain-linked monthly Modified Dietz — strips deposit-size and timing effects
+  const twr = calcTWR(data.snapshots, data.cashflows);
+  // MWR: XIRR pre-computed by the spreadsheet from actual transaction dates — the gold standard
+  const mwr = data.investmentMetrics.annualisedReturn;
+  const totalGainPct = data.investmentMetrics.totalReturn;
 
   const monthlyReturns = data.snapshots.slice(1).map((s, i) => ({
     date: s.date.replace(/^\d+-/, ""),
@@ -778,17 +798,21 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
     const months = monthsBetween(selPeriod.startMonth, selPeriod.endMonth);
     const doAnn  = annualise && months > 0;
 
-    // ITD: use the spreadsheet's own XIRR / total return (accurate, accounts for deposit timing).
-    // Sub-periods: use investment value change (equities + bonds + crypto) — approximate.
+    // ITD: use the spreadsheet's own XIRR / total return — the authoritative pre-computed figure.
+    // Sub-periods: Modified Dietz strips DCA deposit effects, giving a comparable investment return.
     let portRet: number | null = null;
     if (isITD) {
       portRet = annualise ? im.annualisedReturn : im.totalReturn;
     } else {
       const startSnap = snapForMonth(data.snapshots, selPeriod.startMonth);
       const endSnap   = snapForMonth(data.snapshots, selPeriod.endMonth);
-      portRet = startSnap && endSnap
-        ? calcInvestmentPeriodReturn(startSnap, endSnap, months, doAnn)
-        : null;
+      if (startSnap && endSnap) {
+        const sv = startSnap.equities + startSnap.crypto;
+        const ev = endSnap.equities   + endSnap.crypto;
+        const sm = parseSnapDate(startSnap.date).getTime();
+        const em = parseSnapDate(endSnap.date).getTime();
+        portRet = modifiedDietz(sv, ev, sm, em, data.cashflows, doAnn, months);
+      }
     }
 
     const entries: { name: string; value: number | null; fill: string }[] = [
@@ -809,7 +833,7 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
         const ep = findBenchPrice(benchmarks[key], selPeriod.endMonth);
         if (sp && ep) entries.push({
           name: label,
-          value: parseFloat(calcPeriodReturn(sp, ep, benchMonths, doAnn && !isITD ? true : annualise).toFixed(1)),
+          value: parseFloat(calcPeriodReturn(sp, ep, benchMonths, annualise).toFixed(1)),
           fill,
         });
       };
@@ -818,7 +842,7 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
       if (hasVwra) addBench("VWRA", "VWRA", "#6366f1");
     }
     return entries;
-  }, [selPeriod, isITD, annualise, benchmarks, hasBenchData, hasVwra, data.snapshots, im]);
+  }, [selPeriod, isITD, annualise, benchmarks, hasBenchData, hasVwra, data.snapshots, data.cashflows, im]);
 
   const stackedData = data.snapshots.map(s => ({
     date: s.date.replace(/^\d+-/, ""),
@@ -862,7 +886,7 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
             <p className="text-[9px] text-slate-600 mt-0.5">{worstMonth?.date}</p>
           </div>
         </div>
-        <p className="text-[9px] text-slate-600 mt-2 text-center">TWR = annualised return on invested capital · MWR = net worth CAGR</p>
+        <p className="text-[9px] text-slate-600 mt-2 text-center">TWR = chain-linked Modified Dietz (equities + crypto) · MWR = XIRR from spreadsheet cashflows</p>
       </div>
 
       {/* Monthly returns */}
@@ -949,8 +973,8 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
             )}
             <p className="text-[9px] text-slate-600 mt-2 text-center">
               {isITD
-                ? `ITD portfolio = XIRR from ${im.inceptionDate} · benchmarks = lump-sum from same date`
-                : "Period portfolio = equities + bonds + crypto value change (approx — includes DCA) · benchmarks = lump-sum"}
+                ? `Portfolio = XIRR from ${im.inceptionDate} · benchmarks = lump-sum same start date`
+                : "Portfolio = Modified Dietz (strips DCA effects) · benchmarks = lump-sum"}
             </p>
           </>
         )}

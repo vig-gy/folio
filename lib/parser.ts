@@ -65,6 +65,13 @@ export interface CPFData {
   estimatedFrs35: number;
 }
 
+export interface Cashflow {
+  dateMs:    number;  // ms since epoch — used for period filtering
+  dateStr:   string;  // original "DD-Mon-YYYY" as in the sheet
+  amountSGD: number;  // positive = deposit into portfolio; negative = withdrawal (flipped from XIRR convention)
+  platform:  string;
+}
+
 export interface InvestmentMetrics {
   totalReturn: number;      // "Total P/L%" from Equities sheet — return on cost basis, inception to date
   annualisedReturn: number; // "Avg Annualised P/L%" — XIRR accounting for deposit timing
@@ -120,6 +127,7 @@ export interface PortfolioData {
     cryptoGold: number;
   };
 
+  cashflows: Cashflow[];
   investmentMetrics: InvestmentMetrics;
   lastUpdated: string;
 }
@@ -320,6 +328,36 @@ export function parsePortfolioData(
     ? `${inceptionParts[2]}-${MO_MAP[inceptionParts[1]] ?? "01"}`
     : "";
 
+  // Parse per-platform cashflows for Modified Dietz / TWR computation.
+  // Columns 18-25 hold date/amount pairs for IBKR, moomoo, Tiger, Webull.
+  // Header row (col 18 = "IBKR Dates") marks where cashflow data begins.
+  // Sheet sign: negative = deposit (XIRR convention) → flip to positive = money into portfolio.
+  const CF_PLATFORMS = ["IBKR", "moomoo", "Tiger", "Webull"];
+  const parseCFDate = (s: string): number | null => {
+    if (!s?.trim()) return null;
+    const parts = s.trim().split("-");
+    if (parts.length !== 3) return null;
+    const mo = MO_MAP[parts[1]];
+    if (!mo) return null;
+    return new Date(parseInt(parts[2]), parseInt(mo) - 1, parseInt(parts[0])).getTime();
+  };
+  const cashflows: Cashflow[] = [];
+  let cfHeaderFound = false;
+  for (const row of equitiesSheet) {
+    if (row[18] === "IBKR Dates") { cfHeaderFound = true; continue; }
+    if (!cfHeaderFound) continue;
+    for (let p = 0; p < 4; p++) {
+      const dateStr = row[18 + p * 2]?.trim();
+      const amtStr  = row[19 + p * 2]?.trim();
+      if (!dateStr || !amtStr) continue;
+      const dateMs = parseCFDate(dateStr);
+      if (dateMs === null) continue;
+      const sheetAmt = parseFloat(amtStr.replace(/[,$\s]/g, "")) || 0;
+      if (sheetAmt === 0) continue;
+      cashflows.push({ dateMs, dateStr, amountSGD: -sheetAmt, platform: CF_PLATFORMS[p] });
+    }
+  }
+
   // Bond positions from Bonds sheet
   // Row 0 = headers; subsequent rows = individual SSBs until sub-total rows
   const bondsSheet = sheets["Bonds"] || [];
@@ -412,6 +450,7 @@ export function parsePortfolioData(
       cash: cashValue,  // from Net Worth summary
       cryptoGold,
     },
+    cashflows,
     investmentMetrics: {
       totalReturn:       investTotalReturn,
       annualisedReturn:  investAnnualisedReturn,
