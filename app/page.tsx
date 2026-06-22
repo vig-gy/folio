@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
 import {
   LayoutDashboard, Briefcase, TrendingUp, Shield, Search, Sparkles,
   RefreshCw, Lock, Eye, EyeOff,
@@ -23,6 +23,10 @@ const COLORS = {
   cash: "#10b981", crypto: "#e6b73b", amber: "#e6b73b",
   rose: "#f43f5e", emerald: "#10b981",
 };
+
+// Privacy mode context — when on, fmtSGD is replaced with "••••" throughout
+const PrivacyCtx = createContext(false);
+const usePrivacy = () => useContext(PrivacyCtx);
 
 const NAV = [
   { id: "home",      icon: LayoutDashboard, label: "Home" },
@@ -108,6 +112,8 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
   const [range, setRange]           = useState<Range>("1Y");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo]     = useState("");
+  const privacy = usePrivacy();
+  const $m = (n: number) => privacy ? "••••" : fmtSGD(n);
 
   const last = data.snapshots[data.snapshots.length - 1];
   const prev = data.snapshots[data.snapshots.length - 2];
@@ -155,11 +161,11 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0b6b3a]/5 to-transparent pointer-events-none" />
         <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-2">Net Worth (excl. CPF)</p>
-        <p className="text-4xl font-bold font-mono text-slate-100 mb-1">{fmtSGD(data.netWorthExclCpf)}</p>
+        <p className="text-4xl font-bold font-mono text-slate-100 mb-1">{$m(data.netWorthExclCpf)}</p>
         <div className="flex items-center gap-2">
           {change >= 0 ? <ArrowUpRight size={14} className="text-emerald-400" /> : <ArrowDownRight size={14} className="text-rose-400" />}
           <span className={`text-sm font-mono ${change >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-            {change >= 0 ? "+" : "-"}{fmtSGD(change)} ({fmtPct(changePct)}) vs last month
+            {change >= 0 ? "+" : "-"}{$m(change)} ({fmtPct(changePct)}) vs last month
           </span>
         </div>
         <p className="text-xs text-slate-600 mt-1">Updated {data.lastUpdated}</p>
@@ -167,10 +173,10 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
 
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="Gross Assets"    value={fmtSGD(data.grossAssets)}        sub="before loans" />
-        <MetricCard label="Loans"           value={fmtSGD(data.totalLoans)}         sub="outstanding" negative />
-        <MetricCard label="incl. CPF OA"    value={fmtSGD(data.netWorthInclOa)}     positive />
-        <MetricCard label="incl. Full CPF"  value={fmtSGD(data.netWorthInclFullCpf)} positive />
+        <MetricCard label="Gross Assets"    value={$m(data.grossAssets)}        sub="before loans" />
+        <MetricCard label="Loans"           value={$m(data.totalLoans)}         sub="outstanding" negative />
+        <MetricCard label="incl. CPF OA"    value={$m(data.netWorthInclOa)}     positive />
+        <MetricCard label="incl. Full CPF"  value={$m(data.netWorthInclFullCpf)} positive />
       </div>
 
       {/* Range selector — controls both charts below */}
@@ -239,7 +245,7 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
               <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip
-                formatter={(v: any) => [`${Number(v) >= 0 ? "+" : "-"}${fmtSGD(Number(v))}`, "Change"]}
+                formatter={(v: any) => [`${Number(v) >= 0 ? "+" : "-"}${$m(Number(v))}`, "Change"]}
                 contentStyle={{ background: "#1e1e2a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
                 labelStyle={{ color: "#94a3b8", fontSize: "11px" }}
               />
@@ -284,6 +290,8 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
 function HoldingsScreen({ data }: { data: PortfolioData }) {
   const [filter, setFilter] = useState<string>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const privacy = usePrivacy();
+  const $m = (n: number) => privacy ? "••••" : fmtSGD(n);
 
   const catColor: Record<string, string> = {
     index: COLORS.index, stock: "#1fa76a", gold: "#e6b73b",
@@ -353,7 +361,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
               {donutData.map((e, i) => <Cell key={i} fill={e.color} strokeWidth={0} />)}
             </Pie>
             <Tooltip
-              formatter={(v: any) => fmtSGD(Number(v ?? 0))}
+              formatter={(v: any) => $m(Number(v ?? 0))}
               contentStyle={{ background: "#1e1e2a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
             />
           </RPieChart>
@@ -405,7 +413,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="text-sm font-mono font-semibold text-slate-100">{fmtSGD(pos.valueSGD)}</p>
+                      <p className="text-sm font-mono font-semibold text-slate-100">{$m(pos.valueSGD)}</p>
                       <p className="text-xs text-slate-500">{pos.allocationPct.toFixed(1)}%</p>
                     </div>
                     {isOpen ? <ChevronUp size={14} className="text-slate-500 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-500 flex-shrink-0" />}
@@ -439,7 +447,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                     </div>
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">SGD Value</p>
-                      <p className="text-sm font-mono text-slate-200">{fmtSGD(pos.valueSGD)}</p>
+                      <p className="text-sm font-mono text-slate-200">{$m(pos.valueSGD)}</p>
                     </div>
                   </div>
                 )}
@@ -463,7 +471,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="text-sm font-mono font-semibold text-slate-100">{fmtSGD(bond.amount)}</p>
+                      <p className="text-sm font-mono font-semibold text-slate-100">{$m(bond.amount)}</p>
                       <p className="text-xs text-slate-500">{((bond.amount / data.grossAssets) * 100).toFixed(1)}%</p>
                     </div>
                     {isOpen ? <ChevronUp size={14} className="text-slate-500 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-500 flex-shrink-0" />}
@@ -485,7 +493,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                     </div>
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Amount Invested</p>
-                      <p className="text-sm font-mono text-slate-200">{fmtSGD(bond.amount)}</p>
+                      <p className="text-sm font-mono text-slate-200">{$m(bond.amount)}</p>
                     </div>
                   </div>
                 )}
@@ -509,7 +517,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <p className="text-sm font-mono font-semibold text-slate-100">{fmtSGD(acct.balance)}</p>
+                    <p className="text-sm font-mono font-semibold text-slate-100">{$m(acct.balance)}</p>
                     <p className="text-xs text-slate-500">{((acct.balance / data.grossAssets) * 100).toFixed(1)}%</p>
                   </div>
                   {isOpen ? <ChevronUp size={14} className="text-slate-500 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-500 flex-shrink-0" />}
@@ -533,6 +541,8 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
 
 function AllocationScreen({ data }: { data: PortfolioData }) {
   const { categoryBreakdown: cat } = data;
+  const privacy = usePrivacy();
+  const $m = (n: number) => privacy ? "••••" : fmtSGD(n);
   const base = cat.indexFunds + cat.individualStocks + cat.bonds + cat.cryptoGold;
   const pcts = {
     index:  (cat.indexFunds / base) * 100,
@@ -571,7 +581,7 @@ function AllocationScreen({ data }: { data: PortfolioData }) {
               {pieData.map((e, i) => <Cell key={i} fill={e.color} strokeWidth={0} />)}
             </Pie>
             <Tooltip
-              formatter={(v: any) => fmtSGD(Number(v ?? 0))}
+              formatter={(v: any) => $m(Number(v ?? 0))}
               contentStyle={{ background: "#1e1e2a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
             />
           </RPieChart>
@@ -595,8 +605,14 @@ function AllocationScreen({ data }: { data: PortfolioData }) {
           { label: "Crypto + Gold",     actual: pcts.crypto, target: targets.crypto, color: COLORS.amber },
         ].map(item => (
           <div key={item.label}>
-            <div className="flex justify-between mb-1">
-              <span className="text-xs text-slate-300">{item.label}</span>
+            <div className="flex justify-between items-center mb-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  Math.abs(item.actual - item.target) <= 2 ? "bg-emerald-400" :
+                  Math.abs(item.actual - item.target) <= 5 ? "bg-amber-400" : "bg-rose-400"
+                }`} />
+                <span className="text-xs text-slate-300">{item.label}</span>
+              </div>
               <span className="text-xs font-mono text-slate-400">{item.actual.toFixed(1)}% → {item.target}%</span>
             </div>
             <div className="relative h-2 bg-white/5 rounded-full overflow-visible">
@@ -615,7 +631,7 @@ function AllocationScreen({ data }: { data: PortfolioData }) {
             <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-[#0b6b3a]/70" style={{ width: `${(value / data.equitiesValue) * 100}%` }} />
             </div>
-            <span className="text-sm font-mono text-slate-200 w-24 text-right">{fmtSGD(value)}</span>
+            <span className="text-sm font-mono text-slate-200 w-24 text-right">{$m(value)}</span>
           </div>
         ))}
       </div>
@@ -749,6 +765,8 @@ function calcTWR(snapshots: NetWorthSnapshot[], cashflows: Cashflow[]): number {
 function InsightsScreen({ data }: { data: PortfolioData }) {
   const [benchmarks, setBenchmarks]     = useState<BenchmarkPrices | null>(null);
   const [benchLoading, setBenchLoading] = useState(true);
+  const privacy = usePrivacy();
+  const $m = (n: number) => privacy ? "••••" : fmtSGD(n);
 
   useEffect(() => {
     fetch("/api/benchmarks")
@@ -1011,7 +1029,7 @@ function InsightsScreen({ data }: { data: PortfolioData }) {
           {[...data.snapshots].reverse().map((s, i) => (
             <div key={i} className="flex justify-between items-center py-2 border-b border-white/[0.04]">
               <span className="text-xs text-slate-400 w-24">{s.date}</span>
-              <span className="text-xs font-mono text-slate-200">{fmtSGD(s.netWorth)}</span>
+              <span className="text-xs font-mono text-slate-200">{$m(s.netWorth)}</span>
               <span className={`text-xs font-mono ${s.totalPLPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                 {s.totalPLPct >= 0 ? "+" : ""}{s.totalPLPct.toFixed(1)}%
               </span>
@@ -1030,12 +1048,14 @@ function LiabilitiesScreen({ data }: { data: PortfolioData }) {
   const gxs = data.loans.find(l => l.name.toLowerCase().includes("gxs") || l.name.toLowerCase().includes("msdeal"));
   const fatherLoans = data.loans.filter(l => l.name.toLowerCase().includes("father"));
   const fatherTotal = fatherLoans.reduce((s, l) => s + l.amount, 0);
+  const privacy = usePrivacy();
+  const $m = (n: number) => privacy ? "••••" : fmtSGD(n);
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="Total Loans" value={fmtSGD(data.totalLoanAmount || data.totalLoans)} negative />
-        <MetricCard label="Net Impact" value={`-${fmtSGD(data.totalLoanAmount || data.totalLoans)}`} sub="on net worth" negative />
+        <MetricCard label="Total Loans" value={$m(data.totalLoanAmount || data.totalLoans)} negative />
+        <MetricCard label="Net Impact" value={`-${$m(data.totalLoanAmount || data.totalLoans)}`} sub="on net worth" negative />
       </div>
       {gxs && (
         <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
@@ -1046,7 +1066,7 @@ function LiabilitiesScreen({ data }: { data: PortfolioData }) {
             </div>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400">Action needed</span>
           </div>
-          <p className="text-2xl font-mono font-bold text-rose-400">{fmtSGD(gxs.amount)}</p>
+          <p className="text-2xl font-mono font-bold text-rose-400">{$m(gxs.amount)}</p>
           <div className="mt-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl flex gap-2">
             <AlertCircle size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-300">Bullet repayment ~$6,480 due Oct 2026. Ring-fence from DCA capital.</p>
@@ -1061,7 +1081,7 @@ function LiabilitiesScreen({ data }: { data: PortfolioData }) {
           </div>
           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#0b6b3a]/10 text-[#a5f4d4]">Family</span>
         </div>
-        <p className="text-2xl font-mono font-bold text-slate-100">{fmtSGD(fatherTotal)}</p>
+        <p className="text-2xl font-mono font-bold text-slate-100">{$m(fatherTotal)}</p>
         <p className="text-xs text-slate-500 mt-1">Invested in VWRA on behalf of father (age 56)</p>
         <div className="mt-3 space-y-2">
           {fatherLoans.map((loan, i) => (
@@ -1070,7 +1090,7 @@ function LiabilitiesScreen({ data }: { data: PortfolioData }) {
                 <p className="text-xs text-slate-300">{loan.name.replace("Father Cash ", "Tranche ")}</p>
                 {loan.refPrice && <p className="text-[10px] text-slate-600">VWRA @ ${loan.refPrice}</p>}
               </div>
-              <p className="text-xs font-mono text-slate-200">{fmtSGD(loan.amount)}</p>
+              <p className="text-xs font-mono text-slate-200">{$m(loan.amount)}</p>
             </div>
           ))}
         </div>
@@ -1087,14 +1107,16 @@ function CPFScreen({ data }: { data: PortfolioData }) {
   const cpf = data.cpf;
   const totalOa = cpf.oa; // oa from parser is already the OA subtotal (cash + POEMs + OCBC)
   const frsGap  = cpf.estimatedFrs3 - cpf.total;
+  const privacy = usePrivacy();
+  const $m = (n: number) => privacy ? "••••" : fmtSGD(n);
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="OA (incl. inv.)" value={fmtSGD(totalOa)} sub="OA + POEMs + OCBC" />
-        <MetricCard label="Special Account" value={fmtSGD(cpf.sa)} sub="4% p.a." positive />
-        <MetricCard label="MediSave" value={fmtSGD(cpf.ma)} />
-        <MetricCard label="Total CPF" value={fmtSGD(cpf.total)} positive />
+        <MetricCard label="OA (incl. inv.)" value={$m(totalOa)} sub="OA + POEMs + OCBC" />
+        <MetricCard label="Special Account" value={$m(cpf.sa)} sub="4% p.a." positive />
+        <MetricCard label="MediSave" value={$m(cpf.ma)} />
+        <MetricCard label="Total CPF" value={$m(cpf.total)} positive />
       </div>
       <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
         <SectionHeader title="FRS gap — retire 2053" />
@@ -1106,7 +1128,7 @@ function CPFScreen({ data }: { data: PortfolioData }) {
         ].map(item => (
           <div key={item.label} className="flex justify-between py-2 border-b border-white/5">
             <span className="text-xs text-slate-400">{item.label}</span>
-            <span className={`text-sm font-mono font-semibold ${item.color}`}>{fmtSGD(item.value)}</span>
+            <span className={`text-sm font-mono font-semibold ${item.color}`}>{$m(item.value)}</span>
           </div>
         ))}
       </div>
@@ -1130,6 +1152,45 @@ function PlanScreen({ data }: { data: PortfolioData }) {
 }
 
 // ─── Research + AI ────────────────────────────────────────────────────────────
+
+function HealthArc({ score }: { score: number }) {
+  const R = 32, cx = 40, cy = 40;
+  const circum = Math.PI * R;
+  const filled = circum * (score / 10);
+  const color = score >= 7 ? "#10b981" : score >= 5 ? "#f59e0b" : "#f43f5e";
+  return (
+    <svg width={80} height={44} viewBox="0 0 80 44" className="flex-shrink-0">
+      <path d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
+        fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={7} strokeLinecap="round" />
+      <path d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
+        fill="none" stroke={color} strokeWidth={7} strokeLinecap="round"
+        strokeDasharray={`${filled} ${circum}`} />
+      <text x={cx} y={cx + 2} textAnchor="middle" fill={color} fontSize={12} fontWeight="bold" fontFamily="monospace">
+        {score}/10
+      </text>
+    </svg>
+  );
+}
+
+function renderMd(text: string): React.ReactNode {
+  const inlineBold = (s: string): React.ReactNode[] =>
+    s.split(/(\*\*.+?\*\*)/).map((p, i) =>
+      p.startsWith("**") && p.endsWith("**")
+        ? <strong key={i} className="text-slate-200 font-semibold">{p.slice(2, -2)}</strong>
+        : <span key={i}>{p}</span>
+    );
+  return text.split("\n").map((line, i) => {
+    if (/^[-*•]\s+/.test(line))
+      return (
+        <div key={i} className="flex gap-1.5 mt-0.5">
+          <span className="text-slate-500 flex-shrink-0">·</span>
+          <span>{inlineBold(line.replace(/^[-*•]\s+/, ""))}</span>
+        </div>
+      );
+    if (!line.trim()) return <div key={i} className="h-1" />;
+    return <p key={i} className="mt-0.5">{inlineBold(line)}</p>;
+  });
+}
 
 function AIScreen({ data }: { data: PortfolioData }) {
   const [messages, setMessages]   = useState<{ role: "user" | "assistant"; content: string }[]>([]);
@@ -1187,20 +1248,48 @@ function AIScreen({ data }: { data: PortfolioData }) {
         </div>
       ) : health ? (
         <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between mb-1">
-            <SectionHeader title="Portfolio health" />
-            <span className="text-2xl font-bold font-mono text-emerald-400">{health.healthScore}/10</span>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <SectionHeader title="Portfolio health" />
+              <p className="text-sm text-slate-300 mt-1 leading-relaxed">{health.healthReason}</p>
+            </div>
+            <HealthArc score={health.healthScore} />
           </div>
-          <p className="text-sm text-slate-300">{health.healthReason}</p>
           {health.recommendations?.length > 0 && (
             <div className="space-y-2">
-              {health.recommendations.map((r: any, i: number) => (
-                <div key={i} className="flex gap-2 p-2.5 bg-[#0b6b3a]/5 rounded-xl border border-[#0b6b3a]/15">
-                  <span className="text-xs text-[#a5f4d4] font-bold flex-shrink-0">{i + 1}</span>
-                  <div>
-                    <p className="text-xs text-slate-200 font-medium">{r.action}</p>
-                    {r.detail && <p className="text-[10px] text-slate-500 mt-0.5">{r.detail}</p>}
+              {health.recommendations.map((r: any, i: number) => {
+                const pri = (r.priority || "").toLowerCase();
+                const priCls = pri === "high"
+                  ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+                  : pri === "medium"
+                  ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                  : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+                return (
+                  <div key={i} className="flex gap-2 p-2.5 bg-[#0b6b3a]/5 rounded-xl border border-[#0b6b3a]/15">
+                    <span className="text-xs text-[#a5f4d4] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2">
+                        <p className="text-xs text-slate-200 font-medium flex-1">{r.action}</p>
+                        {pri && (
+                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 capitalize ${priCls}`}>
+                            {pri}
+                          </span>
+                        )}
+                      </div>
+                      {r.detail && <p className="text-[10px] text-slate-500 mt-0.5">{r.detail}</p>}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+          {health.risks?.length > 0 && (
+            <div className="space-y-1.5 pt-1 border-t border-white/[0.04]">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-500">Key risks</p>
+              {health.risks.map((risk: string, i: number) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <AlertCircle size={11} className="text-rose-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-slate-400">{risk}</p>
                 </div>
               ))}
             </div>
@@ -1224,7 +1313,7 @@ function AIScreen({ data }: { data: PortfolioData }) {
                   ? "bg-[#0b6b3a]/20 text-[#a5f4d4]"
                   : "bg-white/[0.05] text-slate-300"
               }`}>
-                {m.content}
+                {m.role === "user" ? m.content : renderMd(m.content)}
               </div>
             </div>
           ))}
@@ -1277,10 +1366,27 @@ function AIScreen({ data }: { data: PortfolioData }) {
 
 function ResearchScreen() {
   const [ticker, setTicker] = useState("");
-  const [result, setResult] = useState<{ ticker?: string; data?: { profile?: { companyName?: string; sector?: string; mktCap?: number; price?: number }; quote?: { changesPercentage?: number }; ratios?: { peRatioTTM?: number; priceToSalesRatioTTM?: number }; recentNews?: { title?: string; publishedDate?: string; url?: string }[] }; analysis?: { verdict?: string; bullCase?: string[]; bearCase?: string[]; portfolioFit?: string } } | null>(null);
+  type ResearchResult = {
+    ticker?: string;
+    data?: {
+      profile?: { companyName?: string; sector?: string; mktCap?: number; price?: number };
+      quote?: { changesPercentage?: number };
+      ratios?: { peRatioTTM?: number; priceToSalesRatioTTM?: number };
+      recentNews?: { title?: string; publishedDate?: string; url?: string }[];
+    };
+    analysis?: {
+      verdict?: string;
+      bullCase?: string[];
+      bearCase?: string[];
+      valuation?: string;
+      portfolioFit?: string;
+      watchMetrics?: string[];
+    };
+  };
+  const [result, setResult] = useState<ResearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
-  const [watchlist, setWatchlist] = useState(["XPEV", "NVDA", "9880.HK", "UBTI", "TSLA"]);
+  const [watchlist, setWatchlist] = useState(["NVDA", "XPEV", "VWRA", "VOO", "MU", "GOOGL"]);
 
   const search = async (t?: string) => {
     const q = (t || ticker).trim().toUpperCase();
@@ -1360,9 +1466,26 @@ function ResearchScreen() {
           </div>
           {result.analysis && (
             <>
-              <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
+              <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4 space-y-2">
                 <SectionHeader title="AI verdict" />
-                <p className="text-sm text-slate-200">{result.analysis.verdict}</p>
+                {(() => {
+                  const word = (result.analysis.verdict || "").split(/\s/)[0].toUpperCase();
+                  const chipCls: Record<string, string> = {
+                    BUY:   "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+                    HOLD:  "bg-amber-500/15 text-amber-400 border-amber-500/30",
+                    WATCH: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+                    AVOID: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+                  };
+                  const cls = chipCls[word] || "bg-white/10 text-slate-300 border-white/20";
+                  return (
+                    <div className="flex items-start gap-2">
+                      {chipCls[word] && (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${cls}`}>{word}</span>
+                      )}
+                      <p className="text-sm text-slate-200 leading-relaxed">{result.analysis.verdict}</p>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
@@ -1384,9 +1507,27 @@ function ResearchScreen() {
                   ))}
                 </div>
               </div>
-              <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
-                <SectionHeader title="Portfolio fit" />
-                <p className="text-xs text-slate-300">{result.analysis.portfolioFit}</p>
+              <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4 space-y-3">
+                {result.analysis.valuation && (
+                  <div>
+                    <SectionHeader title="Valuation" />
+                    <p className="text-xs text-slate-300">{result.analysis.valuation}</p>
+                  </div>
+                )}
+                <div>
+                  <SectionHeader title="Portfolio fit" />
+                  <p className="text-xs text-slate-300">{result.analysis.portfolioFit}</p>
+                </div>
+                {result.analysis.watchMetrics && result.analysis.watchMetrics.length > 0 && (
+                  <div>
+                    <SectionHeader title="Watch metrics" />
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {result.analysis.watchMetrics.map((m, i) => (
+                        <span key={i} className="text-[10px] px-2 py-1 rounded-lg bg-white/[0.06] border border-white/[0.08] text-slate-400">{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -1480,6 +1621,7 @@ export default function FolioApp() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [privacy, setPrivacy] = useState(false);
 
   const fetchPortfolio = useCallback(async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
@@ -1514,10 +1656,24 @@ export default function FolioApp() {
             <h1 className="text-lg font-semibold text-slate-100 -mt-0.5">{activeNav?.label}</h1>
           </div>
         </div>
-        <button onClick={() => fetchPortfolio(true)} disabled={refreshing}
-          className="w-8 h-8 rounded-xl bg-white/[0.05] flex items-center justify-center text-slate-400 hover:bg-white/[0.1] transition-all disabled:opacity-40">
-          <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-1.5">
+          {privacy && (
+            <span className="text-[10px] font-mono tracking-tight text-slate-400 bg-white/[0.06] border border-white/[0.08] rounded-lg px-2 py-1 select-none">
+              folio
+            </span>
+          )}
+          <button onClick={() => setPrivacy(p => !p)}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+              privacy ? "bg-amber-500/15 text-amber-400" : "bg-white/[0.05] text-slate-400 hover:bg-white/[0.1]"
+            }`}
+            title={privacy ? "Privacy on — tap to reveal" : "Privacy off — tap to hide values"}>
+            {privacy ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+          <button onClick={() => fetchPortfolio(true)} disabled={refreshing}
+            className="w-8 h-8 rounded-xl bg-white/[0.05] flex items-center justify-center text-slate-400 hover:bg-white/[0.1] transition-all disabled:opacity-40">
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-4 py-4"
@@ -1541,13 +1697,13 @@ export default function FolioApp() {
           </div>
         )}
         {!loading && !error && portfolio && (
-          <>
+          <PrivacyCtx.Provider value={privacy}>
             {screen === "home"      && <SnapshotScreen   data={portfolio} />}
             {screen === "portfolio" && <PortfolioScreen  data={portfolio} />}
             {screen === "insights"  && <InsightsScreen   data={portfolio} />}
             {screen === "plan"      && <PlanScreen       data={portfolio} />}
             {screen === "ai"        && <ResearchAIScreen data={portfolio} />}
-          </>
+          </PrivacyCtx.Provider>
         )}
       </main>
 
