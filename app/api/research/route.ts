@@ -70,15 +70,16 @@ export async function GET(req: NextRequest) {
 Stock data:
 ${JSON.stringify(companyData, null, 2)}
 
-Provide a structured assessment with:
-1. One-line verdict (buy/hold/watch/avoid with brief reason)
-2. Bull case (2-3 key points)
-3. Bear case (2-3 key risks)
-4. Valuation (cheap/fair/expensive with one supporting metric)
-5. Fit with a physical AI / tech-focused portfolio
-6. Key metrics to watch over next 12 months
+Return a JSON object with exactly these keys:
 
-Be direct and specific. No generic disclaimers. Format as JSON with keys: verdict, bullCase, bearCase, valuation, portfolioFit, watchMetrics.`;
+- verdict: Start with BUY / HOLD / WATCH / AVOID (in caps), then 2-3 sentences explaining the core thesis. Be specific — reference actual metrics or competitive position from the data.
+- bullCase: Array of 3 strings. Each string is 1-2 sentences with a concrete reason and supporting data point where possible.
+- bearCase: Array of 3 strings. Each string is 1-2 sentences with a specific risk and its potential magnitude.
+- valuation: 2-3 sentences. State whether cheap/fair/expensive, cite the key multiples (P/E, P/S, or P/B), and compare to historical or sector norms if relevant.
+- portfolioFit: 2-3 sentences. Be specific about why this does or does not fit a physical AI / tech-tilted portfolio with global index as core. Call out overlap, concentration risk, or strategic value explicitly.
+- watchMetrics: Array of 4-6 short strings (each under 8 words) — the specific KPIs to monitor over 12 months.
+
+Use markdown bold (**text**) to highlight key numbers or terms within text fields. Do not use headers or bullet characters inside field values. No disclaimers.`;
 
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

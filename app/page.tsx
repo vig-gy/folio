@@ -1566,12 +1566,13 @@ function ResearchScreen() {
                     AVOID: "bg-rose-500/15 text-rose-400 border-rose-500/30",
                   };
                   const cls = chipCls[word] || "bg-white/10 text-slate-300 border-white/20";
+                  const body = (result.analysis.verdict || "").replace(/^(BUY|HOLD|WATCH|AVOID)\s*[-—:]\s*/i, "").trim();
                   return (
-                    <div className="flex items-start gap-2">
+                    <div className="space-y-2">
                       {chipCls[word] && (
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${cls}`}>{word}</span>
+                        <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full border ${cls}`}>{word}</span>
                       )}
-                      <p className="text-sm text-slate-200 leading-relaxed">{result.analysis.verdict}</p>
+                      <div className="text-sm text-slate-200 leading-relaxed">{renderMd(body)}</div>
                     </div>
                   );
                 })()}
@@ -1579,33 +1580,37 @@ function ResearchScreen() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
                   <SectionHeader title="Bull case" />
-                  {(result.analysis.bullCase || []).map((p, i) => (
-                    <div key={i} className="flex gap-1.5 mb-1.5">
-                      <span className="text-emerald-400 text-xs">+</span>
-                      <p className="text-xs text-slate-400">{p}</p>
-                    </div>
-                  ))}
+                  <div className="space-y-2">
+                    {(result.analysis.bullCase || []).map((p, i) => (
+                      <div key={i} className="flex gap-1.5">
+                        <span className="text-emerald-400 text-xs flex-shrink-0 mt-0.5">+</span>
+                        <div className="text-xs text-slate-400 leading-relaxed">{renderMd(p)}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4">
                   <SectionHeader title="Bear case" />
-                  {(result.analysis.bearCase || []).map((p, i) => (
-                    <div key={i} className="flex gap-1.5 mb-1.5">
-                      <span className="text-rose-400 text-xs">−</span>
-                      <p className="text-xs text-slate-400">{p}</p>
-                    </div>
-                  ))}
+                  <div className="space-y-2">
+                    {(result.analysis.bearCase || []).map((p, i) => (
+                      <div key={i} className="flex gap-1.5">
+                        <span className="text-rose-400 text-xs flex-shrink-0 mt-0.5">−</span>
+                        <div className="text-xs text-slate-400 leading-relaxed">{renderMd(p)}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="bg-[#16161f] border border-white/[0.06] rounded-2xl p-4 space-y-3">
                 {result.analysis.valuation && (
                   <div>
                     <SectionHeader title="Valuation" />
-                    <p className="text-xs text-slate-300">{result.analysis.valuation}</p>
+                    <div className="text-xs text-slate-300 leading-relaxed">{renderMd(result.analysis.valuation)}</div>
                   </div>
                 )}
                 <div>
                   <SectionHeader title="Portfolio fit" />
-                  <p className="text-xs text-slate-300">{result.analysis.portfolioFit}</p>
+                  <div className="text-xs text-slate-300 leading-relaxed">{renderMd(result.analysis.portfolioFit ?? "")}</div>
                 </div>
                 {result.analysis.watchMetrics && result.analysis.watchMetrics.length > 0 && (
                   <div>
