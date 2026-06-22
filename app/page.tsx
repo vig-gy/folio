@@ -65,11 +65,12 @@ function MetricCard({ label, value, sub, positive, negative }: {
 }
 
 const TTip = ({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string }) => {
+  const privacy = usePrivacy();
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-[#1e1e2a] border border-white/10 rounded-xl p-3 text-xs shadow-xl">
       <p className="text-slate-400 mb-1">{label}</p>
-      {payload.map((p, i) => <p key={i} style={{ color: p.color }} className="font-mono">{p.name}: ${fmt(p.value)}</p>)}
+      {payload.map((p, i) => <p key={i} style={{ color: p.color }} className="font-mono">{p.name}: {privacy ? "••••" : `$${fmt(p.value)}`}</p>)}
     </div>
   );
 };
@@ -274,7 +275,7 @@ function SnapshotScreen({ data }: { data: PortfolioData }) {
           <div key={item.label} className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
             <span className="text-sm text-slate-300 flex-1">{item.label}</span>
-            <span className="text-sm font-mono text-slate-200">{fmtSGD(item.value)}</span>
+            <span className="text-sm font-mono text-slate-200">{$m(item.value)}</span>
             <span className="text-xs text-slate-500 w-10 text-right font-mono">
               {((item.value / data.grossAssets) * 100).toFixed(1)}%
             </span>
@@ -308,19 +309,47 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
 
   const FILTERS = ["all", "index", "stock", "bond", "crypto", "cash"] as const;
 
+  // Consolidate per-platform positions into one row per ticker
+  type ConsolidatedPos = {
+    ticker: string; category: typeof data.positions[0]["category"];
+    currency: string; totalUnits: number; currentPrice: number;
+    valueLocal: number; fxRate: number; valueSGD: number;
+    allocationPct: number; platforms: string;
+  };
+  const consolidated: ConsolidatedPos[] = useMemo(() => {
+    const map = new Map<string, typeof data.positions>();
+    for (const p of data.positions) {
+      if (!map.has(p.ticker)) map.set(p.ticker, []);
+      map.get(p.ticker)!.push(p);
+    }
+    return Array.from(map.entries()).map(([ticker, ps]) => {
+      const first = ps[0];
+      const totalSGD   = ps.reduce((s, p) => s + p.valueSGD, 0);
+      const totalUnits = ps.reduce((s, p) => s + p.units, 0);
+      const totalLocal = ps.reduce((s, p) => s + p.valueLocal, 0);
+      return {
+        ticker, category: first.category, currency: first.currency,
+        totalUnits, currentPrice: first.currentPrice, valueLocal: totalLocal,
+        fxRate: first.fxRate, valueSGD: totalSGD,
+        allocationPct: (totalSGD / data.grossAssets) * 100,
+        platforms: ps.map(p => p.platform).join(" · "),
+      };
+    });
+  }, [data.positions, data.grossAssets]);
+
   // Build a unified sorted item list across all three sources
   type Item =
-    | { kind: "pos";  key: string; value: number; data: typeof data.positions[0] }
+    | { kind: "cpos"; key: string; value: number; data: ConsolidatedPos }
     | { kind: "bond"; key: string; value: number; data: typeof data.bondPositions[0] }
     | { kind: "bank"; key: string; value: number; data: typeof data.bankAccounts[0] };
 
   const items: Item[] = [];
 
-  // Positions (equities, gold, crypto, platform cash)
+  // Consolidated positions (equities, gold, crypto, platform cash)
   const posFilter = filter === "all" ? null : filter === "bond" ? "__none__" : filter;
-  data.positions
-    .filter(p => posFilter === null || p.category === posFilter)
-    .forEach((p, i) => items.push({ kind: "pos", key: `pos-${i}`, value: p.valueSGD, data: p }));
+  consolidated
+    .filter(cp => posFilter === null || cp.category === posFilter)
+    .forEach((cp, i) => items.push({ kind: "cpos", key: `cpos-${i}`, value: cp.valueSGD, data: cp }));
 
   // Bond positions (SSBs) — shown for "all" or "bond"
   if (filter === "all" || filter === "bond") {
@@ -397,7 +426,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
           const isOpen = expanded === item.key;
           const toggle = () => setExpanded(isOpen ? null : item.key);
 
-          if (item.kind === "pos") {
+          if (item.kind === "cpos") {
             const pos = item.data;
             return (
               <div key={item.key}
@@ -408,7 +437,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                     <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: catColor[pos.category] || "#475569" }} />
                     <div>
                       <p className="text-sm font-semibold text-slate-100">{pos.ticker}</p>
-                      <p className="text-xs text-slate-500">{pos.platform}</p>
+                      <p className="text-xs text-slate-500">{pos.platforms}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -423,7 +452,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                   <div className="mt-3 pt-3 border-t border-white/[0.06] grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Units</p>
-                      <p className="text-sm font-mono text-slate-200">{pos.units}</p>
+                      <p className="text-sm font-mono text-slate-200">{pos.totalUnits}</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Price ({pos.currency})</p>
@@ -433,7 +462,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
                       <>
                         <div>
                           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Value ({pos.currency})</p>
-                          <p className="text-sm font-mono text-slate-200">{fmt(pos.valueLocal)}</p>
+                          <p className="text-sm font-mono text-slate-200">{privacy ? "••••" : fmt(pos.valueLocal)}</p>
                         </div>
                         <div>
                           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">FX Rate</p>
@@ -502,6 +531,7 @@ function HoldingsScreen({ data }: { data: PortfolioData }) {
           }
 
           // bank account
+          if (item.kind !== "bank") return null;
           const acct = item.data;
           return (
             <div key={item.key}
@@ -1172,23 +1202,79 @@ function HealthArc({ score }: { score: number }) {
   );
 }
 
-function renderMd(text: string): React.ReactNode {
+function renderMd(text: string, privacy = false): React.ReactNode {
+  const MONEY_RE = /(?:S?\$|SGD\s*)[\d,]+(?:\.\d{1,2})?/g;
+  const maskText = (s: string) => privacy ? s.replace(MONEY_RE, "••••") : s;
   const inlineBold = (s: string): React.ReactNode[] =>
-    s.split(/(\*\*.+?\*\*)/).map((p, i) =>
+    maskText(s).split(/(\*\*.+?\*\*)/).map((p, i) =>
       p.startsWith("**") && p.endsWith("**")
         ? <strong key={i} className="text-slate-200 font-semibold">{p.slice(2, -2)}</strong>
         : <span key={i}>{p}</span>
     );
-  return text.split("\n").map((line, i) => {
-    if (/^[-*•]\s+/.test(line))
-      return (
-        <div key={i} className="flex gap-1.5 mt-0.5">
-          <span className="text-slate-500 flex-shrink-0">·</span>
-          <span>{inlineBold(line.replace(/^[-*•]\s+/, ""))}</span>
-        </div>
-      );
-    if (!line.trim()) return <div key={i} className="h-1" />;
-    return <p key={i} className="mt-0.5">{inlineBold(line)}</p>;
+
+  // Group consecutive pipe-lines into table blocks; everything else is a text line.
+  type Block = { kind: "table"; rows: string[] } | { kind: "line"; text: string };
+  const blocks: Block[] = [];
+  for (const line of text.split("\n")) {
+    if (line.trimStart().startsWith("|")) {
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "table") last.rows.push(line);
+      else blocks.push({ kind: "table", rows: [line] });
+    } else {
+      blocks.push({ kind: "line", text: line });
+    }
+  }
+
+  const parseRow = (l: string) => l.split("|").slice(1, -1).map(c => c.trim());
+  const isSep    = (l: string) => /^\s*\|[\s\-:|]+\|\s*$/.test(l);
+
+  return blocks.map((block, bi) => {
+    if (block.kind === "line") {
+      const line = block.text;
+      if (/^[-*•]\s+/.test(line))
+        return (
+          <div key={bi} className="flex gap-1.5 mt-0.5">
+            <span className="text-slate-500 flex-shrink-0">·</span>
+            <span>{inlineBold(line.replace(/^[-*•]\s+/, ""))}</span>
+          </div>
+        );
+      if (!line.trim()) return <div key={bi} className="h-1" />;
+      return <p key={bi} className="mt-0.5">{inlineBold(line)}</p>;
+    }
+
+    // Table block
+    const { rows } = block;
+    if (rows.length < 2) return <p key={bi} className="mt-0.5 font-mono text-xs">{rows[0]}</p>;
+    const headers  = parseRow(rows[0]);
+    const hasSep   = isSep(rows[1]);
+    const dataRows = rows.slice(hasSep ? 2 : 1);
+
+    return (
+      <div key={bi} className="mt-2 mb-1 overflow-x-auto rounded-xl border border-white/[0.06]">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-[#0b6b3a]/20">
+              {headers.map((h, ci) => (
+                <th key={ci} className="py-2 px-3 text-left text-slate-300 font-semibold border-b border-white/[0.08] whitespace-nowrap">
+                  {inlineBold(h)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dataRows.map((row, ri) => (
+              <tr key={ri} className={ri % 2 === 1 ? "bg-white/[0.025]" : ""}>
+                {parseRow(row).map((cell, ci) => (
+                  <td key={ci} className="py-2 px-3 text-slate-300 border-b border-white/[0.04] last:border-b-0">
+                    {inlineBold(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   });
 }
 
@@ -1199,6 +1285,9 @@ function AIScreen({ data }: { data: PortfolioData }) {
   const [health, setHealth]       = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const privacy = usePrivacy();
+  const MONEY_RE = /(?:S?\$|SGD\s*)[\d,]+(?:\.\d{1,2})?/g;
+  const $t = (s: string) => privacy ? s.replace(MONEY_RE, "••••") : s;
 
   useEffect(() => {
     fetch(`/api/analyze?data=${encodeURIComponent(JSON.stringify(data))}`)
@@ -1251,7 +1340,7 @@ function AIScreen({ data }: { data: PortfolioData }) {
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <SectionHeader title="Portfolio health" />
-              <p className="text-sm text-slate-300 mt-1 leading-relaxed">{health.healthReason}</p>
+              <p className="text-sm text-slate-300 mt-1 leading-relaxed">{$t(health.healthReason)}</p>
             </div>
             <HealthArc score={health.healthScore} />
           </div>
@@ -1269,14 +1358,14 @@ function AIScreen({ data }: { data: PortfolioData }) {
                     <span className="text-xs text-[#a5f4d4] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-2">
-                        <p className="text-xs text-slate-200 font-medium flex-1">{r.action}</p>
+                        <p className="text-xs text-slate-200 font-medium flex-1">{$t(r.action)}</p>
                         {pri && (
                           <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 capitalize ${priCls}`}>
                             {pri}
                           </span>
                         )}
                       </div>
-                      {r.detail && <p className="text-[10px] text-slate-500 mt-0.5">{r.detail}</p>}
+                      {r.detail && <p className="text-[10px] text-slate-500 mt-0.5">{$t(r.detail)}</p>}
                     </div>
                   </div>
                 );
@@ -1289,7 +1378,7 @@ function AIScreen({ data }: { data: PortfolioData }) {
               {health.risks.map((risk: string, i: number) => (
                 <div key={i} className="flex gap-2 items-start">
                   <AlertCircle size={11} className="text-rose-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-slate-400">{risk}</p>
+                  <p className="text-xs text-slate-400">{$t(risk)}</p>
                 </div>
               ))}
             </div>
@@ -1297,7 +1386,7 @@ function AIScreen({ data }: { data: PortfolioData }) {
           {health.highlight && (
             <div className="p-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex gap-2">
               <CheckCircle size={13} className="text-emerald-400 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-emerald-300">{health.highlight}</p>
+              <p className="text-xs text-emerald-300">{$t(health.highlight)}</p>
             </div>
           )}
         </div>
@@ -1313,7 +1402,7 @@ function AIScreen({ data }: { data: PortfolioData }) {
                   ? "bg-[#0b6b3a]/20 text-[#a5f4d4]"
                   : "bg-white/[0.05] text-slate-300"
               }`}>
-                {m.role === "user" ? m.content : renderMd(m.content)}
+                {m.role === "user" ? m.content : renderMd(m.content, privacy)}
               </div>
             </div>
           ))}
